@@ -1,0 +1,58 @@
+{
+  "name": "featuredocs",
+  "displayName": "FeatureDocs",
+  "description": "Automatically generate comprehensive, professional PDF documentation for a single backend feature/module via static code analysis (Django first, more frameworks planned).",
+  "version": "0.0.1",
+  "publisher": "featuredocs",
+  "private": true,
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "featuredocs.generateFeatureDocumentation",
+        "title": "Generate Feature Documentation",
+        "category": "FeatureDocs"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "featuredocs.generateFeatureDocumentation",
+          "when": "explorerResourceIsFolder",
+          "group": "featuredocs@1"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "node esbuild.js --production",
+    "watch": "node esbuild.js --watch",
+    "compile": "tsc -p ./ --noEmit",
+    "lint": "eslint src --ext .ts",
+    "test": "node ./dist/test/runTest.js",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/pdfkit": "^0.13.4",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "@vscode/vsce": "^2.24.0",
+    "esbuild": "^0.20.0",
+    "eslint": "^8.56.0",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "pdfkit": "^0.14.0",
+    "svg-to-pdfkit": "^0.1.8"
+  }
+}
