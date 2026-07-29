@@ -3,7 +3,6 @@ import { IFeatureParser } from '../featureParser';
 import {
   FeatureDocumentationData,
   FeatureFileInventory,
-  EndpointDefinition,
   ModelDefinition,
   SerializerDefinition,
   PermissionUsage,
@@ -12,11 +11,14 @@ import {
   SignalDefinition,
   CeleryTaskDefinition,
   DependencyReference,
+  WorkflowDefinition,
+  AdminRegistration,
+  TestSummary,
 } from '../../models/featureDocumentation';
 import { fileExists, joinFeaturePath, readIfExists } from '../../utils/fileSystem';
 import { DJANGO_FEATURE_FILES } from './constants';
-import { UrlsParser } from './urlsParser';
-import { ViewsParser } from './viewsParser';
+import { UrlsParser, RawRoute } from './urlsParser';
+import { ViewsParser, ParsedView } from './viewsParser';
 import { SerializersParser } from './serializersParser';
 import { ModelsParser } from './modelsParser';
 import { PermissionsParser } from './permissionsParser';
@@ -26,10 +28,16 @@ import { TasksParser } from './tasksParser';
 import { AdminParser } from './adminParser';
 import { TestsParser } from './testsParser';
 import { ImportsParser } from './importsParser';
+import { linkEndpoints } from './endpointLinker';
 
 /**
  * Orchestrates the per-file Django sub-parsers and assembles their output
  * into the framework-agnostic FeatureDocumentationData contract.
+ *
+ * urls.py and views.py are parsed independently into raw, unlinked shapes
+ * (RawRoute / ParsedView) and only combined into final EndpointDefinitions
+ * once both are available (linkEndpoints), since a route's HTTP methods and
+ * payload shape depend on the view it points to.
  */
 export class DjangoFeatureParser implements IFeatureParser {
   readonly frameworkName = 'Django';
@@ -55,7 +63,8 @@ export class DjangoFeatureParser implements IFeatureParser {
   async parse(featureFolderPath: string, projectName: string): Promise<FeatureDocumentationData> {
     const fileInventory = await this.buildFileInventory(featureFolderPath);
 
-    const endpoints: EndpointDefinition[] = [];
+    const routes: RawRoute[] = [];
+    const views: ParsedView[] = [];
     const models: ModelDefinition[] = [];
     const serializers: SerializerDefinition[] = [];
     const permissions: PermissionUsage[] = [];
@@ -64,6 +73,8 @@ export class DjangoFeatureParser implements IFeatureParser {
     const signals: SignalDefinition[] = [];
     const celeryTasks: CeleryTaskDefinition[] = [];
     const dependencies: DependencyReference[] = [];
+    const adminRegistrations: AdminRegistration[] = [];
+    let testSummary: TestSummary | undefined;
 
     for (const file of fileInventory) {
       if (!file.present) {
@@ -79,11 +90,11 @@ export class DjangoFeatureParser implements IFeatureParser {
 
       switch (file.fileName) {
         case 'urls.py':
-          endpoints.push(...this.urlsParser.parse(content, file.relativePath));
+          routes.push(...this.urlsParser.parse(content, file.relativePath));
           break;
         case 'views.py': {
           const result = this.viewsParser.parse(content, file.relativePath);
-          endpoints.push(...result.endpoints);
+          views.push(...result.views);
           permissions.push(...result.permissions);
           authentication.push(...result.authentication);
           break;
@@ -107,13 +118,18 @@ export class DjangoFeatureParser implements IFeatureParser {
           celeryTasks.push(...this.tasksParser.parse(content, file.relativePath));
           break;
         case 'admin.py':
-          this.adminParser.parse(content, file.relativePath);
+          adminRegistrations.push(...this.adminParser.parse(content, file.relativePath));
           break;
         case 'tests.py':
-          this.testsParser.parse(content, file.relativePath);
+          testSummary = this.testsParser.parse(content, file.relativePath);
           break;
       }
     }
+
+    const endpoints = linkEndpoints(routes, views);
+    const workflows: WorkflowDefinition[] = models
+      .filter((model) => model.statusChoices && model.statusChoices.length > 0)
+      .map((model) => ({ modelName: model.name, sourceFile: model.sourceFile, states: model.statusChoices! }));
 
     return {
       metadata: {
@@ -131,6 +147,9 @@ export class DjangoFeatureParser implements IFeatureParser {
       signals,
       celeryTasks,
       dependencies,
+      workflows,
+      adminRegistrations,
+      testSummary,
     };
   }
 

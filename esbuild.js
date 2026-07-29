@@ -14,7 +14,11 @@ async function main() {
     sourcesContent: false,
     platform: 'node',
     outfile: 'dist/extension.js',
-    external: ['vscode'],
+    // pdfkit reads its .afm font metrics from disk relative to its own
+    // module folder at runtime; bundling it would break that lookup, so it
+    // (and its svg-to-pdfkit companion) stay external and are required
+    // from node_modules instead.
+    external: ['vscode', 'pdfkit', 'svg-to-pdfkit'],
     logLevel: 'info',
   });
 

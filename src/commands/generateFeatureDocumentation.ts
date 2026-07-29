@@ -34,35 +34,46 @@ export function registerGenerateFeatureDocumentationCommand(
         return;
       }
 
-      await vscode.window.withProgress(
+      // The "Open Report" follow-up prompt is deliberately NOT awaited inside
+      // withProgress: showInformationMessage only resolves once the user
+      // clicks a button or dismisses it, and awaiting it in here would keep
+      // the progress spinner on screen indefinitely even though generation
+      // itself already finished.
+      const result = await vscode.window.withProgress(
         { location: vscode.ProgressLocation.Notification, title: 'FeatureDocs: Generating documentation…' },
         async () => {
-          try {
-            logger.info(`Parsing ${featureFolderPath} with ${parser.frameworkName} parser`);
-            const workspaceFolder = vscode.workspace.getWorkspaceFolder(featureFolderUri);
-            const projectName = workspaceFolder?.name ?? path.basename(path.dirname(featureFolderPath));
+          logger.info(`Parsing ${featureFolderPath} with ${parser.frameworkName} parser`);
+          const workspaceFolder = vscode.workspace.getWorkspaceFolder(featureFolderUri);
+          const projectName = workspaceFolder?.name ?? path.basename(path.dirname(featureFolderPath));
 
-            const data = await parser.parse(featureFolderPath, projectName);
+          const data = await parser.parse(featureFolderPath, projectName);
 
-            const outputDirectory = path.join(featureFolderPath, '.featuredocs');
-            const generator = new PdfReportGenerator();
-            const report = await generator.generate(data, outputDirectory);
+          const outputDirectory = path.join(featureFolderPath, '.featuredocs');
+          const generator = new PdfReportGenerator();
+          const report = await generator.generate(data, outputDirectory);
 
-            logger.info(`Generated report at ${report.pdfPath}`);
-            const openReport = 'Open Report';
-            const selection = await vscode.window.showInformationMessage(
-              `FeatureDocs: documentation generated for "${data.metadata.featureName}".`,
-              openReport
-            );
-            if (selection === openReport) {
-              await vscode.env.openExternal(vscode.Uri.file(report.pdfPath));
-            }
-          } catch (err) {
-            logger.error('Failed to generate feature documentation', err);
-            vscode.window.showErrorMessage(`FeatureDocs: failed to generate documentation. ${String(err)}`);
-          }
+          logger.info(`Generated report at ${report.pdfPath}`);
+          return { report, featureName: data.metadata.featureName };
         }
+      ).then(
+        (value) => ({ ok: true as const, value }),
+        (err) => ({ ok: false as const, err })
       );
+
+      if (!result.ok) {
+        logger.error('Failed to generate feature documentation', result.err);
+        vscode.window.showErrorMessage(`FeatureDocs: failed to generate documentation. ${String(result.err)}`);
+        return;
+      }
+
+      const openReport = 'Open Report';
+      const selection = await vscode.window.showInformationMessage(
+        `FeatureDocs: documentation generated for "${result.value.featureName}".`,
+        openReport
+      );
+      if (selection === openReport) {
+        await vscode.env.openExternal(vscode.Uri.file(result.value.report.pdfPath));
+      }
     }
   );
 

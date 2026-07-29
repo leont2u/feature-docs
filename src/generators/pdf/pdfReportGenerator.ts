@@ -12,7 +12,7 @@ import { FileStructureSection } from './sections/fileStructureSection';
 import { ApiEndpointsSection } from './sections/apiEndpointsSection';
 import { ModelsSection } from './sections/modelsSection';
 import { ErdSection } from './sections/erdSection';
-import { RequestFlowSection } from './sections/requestFlowSection';
+import { WorkflowSection } from './sections/workflowSection';
 import { PermissionsSection } from './sections/permissionsSection';
 import { AuthenticationSection } from './sections/authenticationSection';
 import { ServicesSection } from './sections/servicesSection';
@@ -53,7 +53,7 @@ export class PdfReportGenerator implements IDocumentGenerator {
     const tocPageIndex = toc.reserve(doc);
 
     const erdSection = new ErdSection(writeDiagram);
-    const requestFlowSection = new RequestFlowSection(writeDiagram);
+    const workflowSection = new WorkflowSection(writeDiagram);
 
     const sections: IPdfSectionRenderer[] = [
       new FeatureOverviewSection(),
@@ -61,7 +61,7 @@ export class PdfReportGenerator implements IDocumentGenerator {
       new ApiEndpointsSection(),
       new ModelsSection(),
       erdSection,
-      requestFlowSection,
+      workflowSection,
       new PermissionsSection(),
       new AuthenticationSection(),
       new ServicesSection(),
@@ -72,7 +72,7 @@ export class PdfReportGenerator implements IDocumentGenerator {
     ];
 
     const tocEntries: TocEntry[] = sections.map((section) => section.render(doc, data));
-    diagramPaths.push(...erdSection.exportedDiagramPaths, ...requestFlowSection.exportedDiagramPaths);
+    diagramPaths.push(...erdSection.exportedDiagramPaths, ...workflowSection.exportedDiagramPaths);
 
     toc.fill(doc, tocPageIndex, tocEntries);
     this.paginate(doc);
@@ -86,19 +86,32 @@ export class PdfReportGenerator implements IDocumentGenerator {
     return { pdfPath, diagramPaths };
   }
 
-  /** Stamps "Page X of N" on every page except the cover. */
+  /**
+   * Stamps "Page X of N" on every page except the cover.
+   *
+   * Writing inside the bottom margin normally makes pdfkit think the text
+   * overflows the page and silently insert a fresh blank page to hold it
+   * (pdfkit's layout engine treats the margin box, not the physical page,
+   * as the writable area). Zeroing the bottom margin for the duration of
+   * this call disables that auto-page-break so the footer lands on the
+   * existing page instead of spawning a new one.
+   */
   private paginate(doc: PDFKit.PDFDocument): void {
     const range = doc.bufferedPageRange();
+    const bottomMargin = doc.page.margins.bottom;
+
     for (let i = range.start + 1; i < range.start + range.count; i++) {
       doc.switchToPage(i);
+      doc.page.margins.bottom = 0;
       doc
         .font(PdfTheme.fonts.body)
         .fontSize(PdfTheme.fontSize.small)
         .fillColor(PdfTheme.colors.muted)
-        .text(`Page ${i + 1} of ${range.count}`, 0, doc.page.height - doc.page.margins.bottom + 10, {
+        .text(`Page ${i + 1} of ${range.count}`, 0, doc.page.height - bottomMargin + 10, {
           align: 'center',
           width: doc.page.width,
         });
+      doc.page.margins.bottom = bottomMargin;
     }
   }
 }

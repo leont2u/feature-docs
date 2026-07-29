@@ -27,12 +27,19 @@ export interface ModelRelation {
   onDelete?: string;
 }
 
+export interface WorkflowState {
+  value: string;
+  label: string;
+}
+
 export interface ModelDefinition {
   name: string;
   sourceFile: string;
   fields: ModelField[];
   baseClasses: string[];
   metaOptions?: Record<string, string>;
+  /** Ordered states from a STATUS_CHOICES-style tuple, if the model has one — the basis for a per-model workflow diagram. */
+  statusChoices?: WorkflowState[];
 }
 
 export interface EndpointDefinition {
@@ -41,7 +48,16 @@ export interface EndpointDefinition {
   handlerName: string;
   handlerType: 'ViewSet' | 'APIView' | 'FunctionView' | 'Unknown';
   viewName?: string;
+  /** Name of the serializer_class governing this endpoint's request/response payload, if resolved. */
+  serializerName?: string;
   sourceFile: string;
+}
+
+/** A model's business-status lifecycle, derived from its STATUS_CHOICES order — the "user journey" shown in place of a generic technical request-flow diagram. */
+export interface WorkflowDefinition {
+  modelName: string;
+  sourceFile: string;
+  states: WorkflowState[];
 }
 
 export interface SerializerDefinition {
@@ -90,6 +106,19 @@ export interface DependencyReference {
   sourceFile: string;
 }
 
+export interface AdminRegistration {
+  modelName: string;
+  adminClassName: string;
+  listDisplay: string[];
+  sourceFile: string;
+}
+
+export interface TestSummary {
+  testClassCount: number;
+  testFunctionCount: number;
+  sourceFile: string;
+}
+
 export interface FeatureFileInventory {
   fileName: string;
   relativePath: string;
@@ -119,4 +148,7 @@ export interface FeatureDocumentationData {
   signals: SignalDefinition[];
   celeryTasks: CeleryTaskDefinition[];
   dependencies: DependencyReference[];
+  workflows: WorkflowDefinition[];
+  adminRegistrations: AdminRegistration[];
+  testSummary?: TestSummary;
 }

@@ -13,7 +13,7 @@ export class FileStructureSection implements IPdfSectionRenderer {
     for (const file of data.fileInventory) {
       doc
         .fillColor(file.present ? PdfTheme.colors.body : PdfTheme.colors.muted)
-        .text(`${file.present ? '✓' : '—'}  ${file.fileName}`);
+        .text(`${file.present ? '[x]' : '[ ]'}  ${file.fileName}`);
     }
 
     return entry;
